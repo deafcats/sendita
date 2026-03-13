@@ -1,0 +1,38 @@
+{
+  "expo": {
+    "name": "Anon Inbox",
+    "slug": "anon-inbox",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "anonInbox",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "icon": "./assets/icon.png",
+    "splash": {
+      "backgroundColor": "#9333ea"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.deafcats.anonInbox"
+    },
+    "android": {
+      "package": "com.deafcats.anonInbox",
+      "adaptiveIcon": {
+        "backgroundColor": "#9333ea"
+      }
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "color": "#9333ea"
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
