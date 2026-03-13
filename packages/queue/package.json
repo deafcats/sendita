@@ -1,0 +1,17 @@
+{
+  "name": "@anon-inbox/queue",
+  "version": "1.0.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./queues": "./src/queues/index.ts",
+    "./jobs": "./src/jobs/index.ts"
+  },
+  "dependencies": {
+    "bullmq": "^5.32.2",
+    "ioredis": "^5.4.2",
+    "@anon-inbox/shared": "workspace:*"
+  }
+}

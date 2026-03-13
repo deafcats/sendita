@@ -1,0 +1,21 @@
+{
+  "name": "@anon-inbox/worker-prompts",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "bullmq": "^5.32.2",
+    "ioredis": "^5.4.2",
+    "@anon-inbox/db": "workspace:*",
+    "@anon-inbox/shared": "workspace:*",
+    "@anon-inbox/queue": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
+    "@types/node": "^22.10.5"
+  }
+}

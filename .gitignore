@@ -1,0 +1,16 @@
+node_modules/
+.next/
+dist/
+build/
+.turbo/
+*.local
+.env
+.env.local
+.env.production
+coverage/
+drizzle/
+*.log
+.DS_Store
+ios/
+android/
+.expo/
