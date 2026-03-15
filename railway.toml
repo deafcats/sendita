@@ -4,9 +4,6 @@
 #   api, web, admin, worker-moderation, worker-push, worker-prompts
 # Then add Postgres and Redis plugins — Railway will inject DATABASE_URL and REDIS_URL automatically.
 
-[build]
-builder = "dockerfile"
-
 # ── API ──────────────────────────────────────────────────────────────────────
 # Service name in Railway: api
 # Dockerfile: Dockerfile.api
