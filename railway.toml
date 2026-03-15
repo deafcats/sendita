@@ -1,0 +1,30 @@
+# Railway deployment config
+# Each [[services]] entry maps to one Railway service.
+# Create the following services in the Railway dashboard, all pointing to this repo:
+#   api, web, admin, worker-moderation, worker-push, worker-prompts
+# Then add Postgres and Redis plugins — Railway will inject DATABASE_URL and REDIS_URL automatically.
+
+[build]
+builder = "dockerfile"
+
+# ── API ──────────────────────────────────────────────────────────────────────
+# Service name in Railway: api
+# Dockerfile: Dockerfile.api
+# Health check path: /api/health
+# Public port: 3001
+
+# ── Web ───────────────────────────────────────────────────────────────────────
+# Service name in Railway: web
+# Dockerfile: Dockerfile.web
+# Public port: 3000
+
+# ── Admin ────────────────────────────────────────────────────────────────────
+# Service name in Railway: admin
+# Dockerfile: Dockerfile.admin
+# Public port: 3002
+
+# ── Workers ──────────────────────────────────────────────────────────────────
+# Service name: worker-moderation  → Dockerfile.worker.moderation
+# Service name: worker-push        → Dockerfile.worker.push
+# Service name: worker-prompts     → Dockerfile.worker.prompts
+# Workers have no public port — they connect to DB/Redis internally.

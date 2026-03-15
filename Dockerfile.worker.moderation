@@ -1,0 +1,32 @@
+FROM node:20-alpine AS base
+RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
+ENV PNPM_HOME=/pnpm
+ENV PATH="$PNPM_HOME:$PATH"
+
+FROM base AS deps
+WORKDIR /app
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
+COPY workers/moderation/package.json ./workers/moderation/
+COPY packages/db/package.json ./packages/db/
+COPY packages/shared/package.json ./packages/shared/
+COPY packages/queue/package.json ./packages/queue/
+RUN pnpm install --frozen-lockfile
+
+FROM base AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 worker
+
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/workers/moderation/node_modules ./workers/moderation/node_modules
+COPY --from=deps /app/packages/db/node_modules ./packages/db/node_modules
+COPY --from=deps /app/packages/shared/node_modules ./packages/shared/node_modules
+COPY --from=deps /app/packages/queue/node_modules ./packages/queue/node_modules
+COPY packages ./packages
+COPY workers/moderation ./workers/moderation
+
+USER worker
+
+CMD ["node_modules/.bin/tsx", "workers/moderation/src/index.ts"]

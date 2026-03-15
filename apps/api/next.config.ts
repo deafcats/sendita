@@ -2,8 +2,8 @@ import type { NextConfig } from 'next';
 import path from 'path';
 
 const nextConfig: NextConfig = {
+  output: 'standalone',
   typescript: {
-    // Type checking runs separately via tsc --noEmit in CI
     ignoreBuildErrors: true,
   },
   eslint: {
