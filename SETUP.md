@@ -217,11 +217,11 @@ The DB client is a singleton — if you see connection errors under concurrent t
 
 | Service | Platform | Notes |
 |---|---|---|
-| `apps/api` | Vercel | Deploy as a Next.js project |
-| `apps/web` | Vercel | Deploy as a Next.js project |
-| `apps/admin` | Vercel | Separate private project, set IP allowlist via middleware |
-| `workers/*` | Railway or Render | Long-running Node processes |
-| PostgreSQL | Neon / Supabase / AWS RDS | Point `DATABASE_URL` at your hosted DB |
-| Redis | Upstash | Set both `REDIS_URL` and `UPSTASH_REDIS_REST_*` vars |
+| `apps/api` | Railway buildpack service | Build from repo root with `pnpm --filter @anon-inbox/api build` |
+| `apps/web` | Railway buildpack service | Build from repo root with `pnpm --filter @anon-inbox/web build` |
+| `apps/admin` | Railway buildpack service | Build from repo root with `pnpm --filter @anon-inbox/admin build` |
+| `workers/*` | Railway worker services | Long-running Node processes started from the repo root |
+| PostgreSQL | Railway Postgres or managed Postgres | Point `DATABASE_URL` at your hosted DB |
+| Redis | Railway Redis or managed Redis | Point `REDIS_URL` at your hosted Redis |
 
-For Vercel deployments, add all env vars from `.env.example` in the Vercel project settings. Worker deployments need the same env vars passed as environment variables on Railway/Render.
+Use Railway buildpacks for all server-side services. Configure each Railway service from the monorepo root, set explicit build/start commands per service, and follow the rollout checklist in `RAILWAY.md`. Do not create a Railway service for `apps/mobile`.

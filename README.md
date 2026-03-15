@@ -1,13 +1,13 @@
 # Anon Inbox
 
-A production-ready anonymous inbox platform. Users share a short link; anyone can send them anonymous messages without creating an account. Built with React Native (Expo), Next.js, Node.js serverless, PostgreSQL, and Redis.
+A production-ready anonymous inbox platform. Users share a short link; anyone can send them anonymous messages without creating an account. Built with React Native (Expo), Next.js, Node.js services, PostgreSQL, and Redis.
 
 ## Monorepo Structure
 
 ```
 anon-inbox/
 ├── apps/
-│   ├── api/          # Next.js API (Vercel Functions / Edge)
+│   ├── api/          # Next.js API service
 │   ├── web/          # Next.js submission page (/to/[slug])
 │   ├── mobile/       # React Native + Expo (iOS & Android)
 │   └── admin/        # Internal admin dashboard (IP-allowlisted)
@@ -117,11 +117,13 @@ See the full architecture plan in `.cursor/plans/`.
 
 ## Deployment
 
-- **API + Web**: Deploy to Vercel (`apps/api`, `apps/web`)
-- **Admin**: Deploy to a private Vercel project with IP allowlist middleware
-- **Workers**: Deploy to Railway or Render as long-running containers
-- **Database**: Neon, Supabase, or RDS PostgreSQL
-- **Redis**: Upstash Redis (serverless-compatible)
+- **API + Web + Admin**: Deploy to Railway as separate buildpack-backed services
+- **Workers**: Deploy to Railway as long-running worker services
+- **Database**: Use Railway Postgres or another managed PostgreSQL service
+- **Redis**: Use Railway Redis or another managed Redis service
+- **Mobile**: Not deployed on Railway; ship separately via Expo / app stores
+
+See `RAILWAY.md` for the exact per-service Railway settings, build commands, start commands, required environment variables, and rollout order.
 
 ## Phases
 

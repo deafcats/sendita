@@ -147,7 +147,7 @@ docker compose up -d
 | Mobile — navigation | ✅ Complete | Expo Router wired up (app.json, _layout, all routes) |
 | Local dev infrastructure | ✅ Complete | Docker via Colima, migrations, env files |
 | Test suite | ✅ 98/98 passing | unit, integration, security, edge cases, race conditions |
-| Dockerfiles (6 services) | ✅ Written | Not actively used — Railway uses Railpack instead |
+| Dockerfiles (6 services) | ✅ Written | Legacy fallback only — Railway buildpacks are the primary deploy path |
 | GitHub repo | ✅ Live | github.com/deafcats/sendita |
 
 ### ⚠️ In Progress
@@ -191,7 +191,9 @@ Dockerfile `Dockerfile` does not exist
 
 **Root cause:** Something in the Railway service configuration is forcing the Dockerfile builder instead of Railpack. We deleted `railway.toml` which had `builder = "dockerfile"` but Railway cached the setting per-service.
 
-**Fix needed:** For each service in Railway → Settings → Build → change Builder dropdown from "Dockerfile" to "Railpack".
+**Repo status now:** The monorepo has been refactored for Railway buildpacks. App start scripts now bind to Railway's injected `PORT`, worker packages have explicit no-op build scripts plus runtime-safe dependencies, and the canonical deployment commands are the root `railway:*` scripts plus the equivalent `pnpm --filter ...` commands.
+
+**Fix needed in Railway UI:** For each service in Railway → Settings → Build → change Builder dropdown from "Dockerfile" to the Railway buildpack builder.
 
 ### Variables set on api service (31 total)
 
@@ -203,17 +205,24 @@ Dockerfile `Dockerfile` does not exist
 |---|---|
 | Created `railway.toml` with `builder = "dockerfile"` | Caused Dockerfile errors on all services |
 | Deleted `railway.toml` | Railway still uses Dockerfile builder (cached in service settings) |
-| Added `output: 'standalone'` to Next.js configs | Reverted — breaks `next start` which Railpack uses |
+| Added `output: 'standalone'` to Next.js configs | Reverted — breaks `next start`, which the Railway buildpack flow now uses |
 | Vercel deployment (earlier attempt) | Switched to Railway because workers can't run on serverless |
 
 ### What actually needs to happen next
 
 1. **Delete `@anon-inbox/mobile`** service in Railway (it can't run on a server)
-2. **For each service** → Settings → Build → change Builder to **Railpack**
-3. **Redeploy** all services
-4. **Generate domains** for api, web, admin (Networking → Generate Domain)
-5. **Run DB migrations** against Railway Postgres once api is up
-6. **Set `NEXT_PUBLIC_API_URL`** on web and admin to the real api Railway domain
+2. **For each service** → Settings → Build → change Builder to the Railway buildpack builder
+3. **Set explicit build/start commands** from the repo root:
+   - `@anon-inbox/api` → `pnpm --filter @anon-inbox/api build` / `pnpm --filter @anon-inbox/api start`
+   - `@anon-inbox/web` → `pnpm --filter @anon-inbox/web build` / `pnpm --filter @anon-inbox/web start`
+   - `@anon-inbox/admin` → `pnpm --filter @anon-inbox/admin build` / `pnpm --filter @anon-inbox/admin start`
+   - `@anon-inbox/worker-moderation` → `pnpm --filter @anon-inbox/worker-moderation build` / `pnpm --filter @anon-inbox/worker-moderation start`
+   - `@anon-inbox/worker-push` → `pnpm --filter @anon-inbox/worker-push build` / `pnpm --filter @anon-inbox/worker-push start`
+   - `@anon-inbox/worker-prompts` → `pnpm --filter @anon-inbox/worker-prompts build` / `pnpm --filter @anon-inbox/worker-prompts start`
+4. **Redeploy** `api` first, then `web` and `admin`, then the workers
+5. **Generate domains** for api, web, admin (Networking → Generate Domain)
+6. **Run DB migrations** against Railway Postgres once api is up
+7. **Set `NEXT_PUBLIC_API_URL`** on web and admin to the real api Railway domain
 
 ---
 
@@ -266,5 +275,6 @@ REDIS_URL=redis://localhost:6379
 | `apps/mobile/src/lib/store.ts` | In-memory store for passing message between screens |
 | `apps/admin/src/app/page.tsx` | Flagged messages dashboard |
 | `apps/admin/src/app/csam/page.tsx` | CSAM report queue |
-| `Dockerfile.*` | Docker images (written, not currently used — Railway uses Railpack) |
+| `Dockerfile.*` | Legacy Docker images kept as a fallback; not the primary production path |
+| `RAILWAY.md` | Canonical Railway deployment guide with service matrix and rollout checklist |
 | `PROBLEMS_LOG.md` | Full log of 22 bugs found and fixed during dev |

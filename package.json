@@ -17,7 +17,19 @@
     "test:load": "k6 run tests/load/scenarios/global-send-rate.js",
     "lint": "turbo lint",
     "db:migrate": "turbo db:migrate",
-    "db:generate": "turbo db:generate"
+    "db:generate": "turbo db:generate",
+    "railway:build:api": "pnpm --filter @anon-inbox/api build",
+    "railway:start:api": "pnpm --filter @anon-inbox/api start",
+    "railway:build:web": "pnpm --filter @anon-inbox/web build",
+    "railway:start:web": "pnpm --filter @anon-inbox/web start",
+    "railway:build:admin": "pnpm --filter @anon-inbox/admin build",
+    "railway:start:admin": "pnpm --filter @anon-inbox/admin start",
+    "railway:build:worker-moderation": "pnpm --filter @anon-inbox/worker-moderation build",
+    "railway:start:worker-moderation": "pnpm --filter @anon-inbox/worker-moderation start",
+    "railway:build:worker-push": "pnpm --filter @anon-inbox/worker-push build",
+    "railway:start:worker-push": "pnpm --filter @anon-inbox/worker-push start",
+    "railway:build:worker-prompts": "pnpm --filter @anon-inbox/worker-prompts build",
+    "railway:start:worker-prompts": "pnpm --filter @anon-inbox/worker-prompts start"
   },
   "devDependencies": {
     "turbo": "^2.3.3",

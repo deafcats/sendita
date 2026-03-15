@@ -12,7 +12,7 @@ Think: anonymous Q&A / confession box, built to production standards with encryp
 
 | Layer | Technology |
 |---|---|
-| API (backend) | Next.js API Routes (Vercel / Edge Functions) |
+| API (backend) | Next.js API service |
 | Web (submission page) | Next.js |
 | Mobile app | React Native + Expo (iOS & Android) |
 | Admin dashboard | Next.js (IP-allowlisted, internal) |
@@ -135,11 +135,11 @@ anon-inbox/
 
 | Service | Platform |
 |---|---|
-| API + Web apps | Vercel |
-| Admin dashboard | Vercel (private project with IP allowlist) |
-| Workers | Railway or Render (long-running containers) |
-| PostgreSQL | Neon, Supabase, or AWS RDS |
-| Redis | Upstash (serverless-compatible) |
+| API + Web apps | Railway buildpack services |
+| Admin dashboard | Railway buildpack service |
+| Workers | Railway worker services |
+| PostgreSQL | Railway Postgres or managed PostgreSQL |
+| Redis | Railway Redis or managed Redis |
 
 ---
 
