@@ -16,7 +16,26 @@ async function getPendingReports() {
 }
 
 export default async function CsamPage() {
-  const reports = await getPendingReports();
+  if (!process.env['DATABASE_URL']) {
+    return (
+      <div className="bg-yellow-900/30 border border-yellow-700 rounded-xl p-8 text-center">
+        <div className="text-lg font-semibold text-yellow-300 mb-2">Database not configured</div>
+        <p className="text-sm text-yellow-600">Add DATABASE_URL to your Vercel environment variables.</p>
+      </div>
+    );
+  }
+
+  let reports: Awaited<ReturnType<typeof getPendingReports>> = [];
+  try {
+    reports = await getPendingReports();
+  } catch (err) {
+    return (
+      <div className="bg-red-900/30 border border-red-700 rounded-xl p-8 text-center">
+        <div className="text-lg font-semibold text-red-300 mb-2">Database connection failed</div>
+        <p className="text-sm text-red-500 font-mono">{String(err)}</p>
+      </div>
+    );
+  }
 
   return (
     <div>

@@ -49,10 +49,35 @@ async function getStats() {
 }
 
 export default async function AdminDashboard() {
-  const [flaggedMessages, stats] = await Promise.all([
-    getFlaggedMessages(),
-    getStats(),
-  ]);
+  if (!process.env['DATABASE_URL']) {
+    return (
+      <div className="bg-yellow-900/30 border border-yellow-700 rounded-xl p-8 text-center">
+        <div className="text-3xl mb-3">⚙️</div>
+        <div className="text-lg font-semibold text-yellow-300 mb-2">Database not configured</div>
+        <p className="text-sm text-yellow-600 max-w-md mx-auto">
+          Add <code className="bg-yellow-900/50 px-1 rounded">DATABASE_URL</code>,{' '}
+          <code className="bg-yellow-900/50 px-1 rounded">ENCRYPTION_KEY</code>, and{' '}
+          <code className="bg-yellow-900/50 px-1 rounded">REDIS_URL</code> to your Vercel environment
+          variables, then redeploy.
+        </p>
+      </div>
+    );
+  }
+
+  let flaggedMessages: Awaited<ReturnType<typeof getFlaggedMessages>> = [];
+  let stats = { pending: 0, flagged: 0, blocked: 0 };
+
+  try {
+    [flaggedMessages, stats] = await Promise.all([getFlaggedMessages(), getStats()]);
+  } catch (err) {
+    return (
+      <div className="bg-red-900/30 border border-red-700 rounded-xl p-8 text-center">
+        <div className="text-3xl mb-3">🔴</div>
+        <div className="text-lg font-semibold text-red-300 mb-2">Database connection failed</div>
+        <p className="text-sm text-red-500 font-mono">{String(err)}</p>
+      </div>
+    );
+  }
 
   return (
     <div>
