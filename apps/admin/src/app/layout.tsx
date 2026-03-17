@@ -17,6 +17,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <a href="/" className="text-sm text-gray-400 hover:text-gray-100 transition-colors">
                 Flagged
               </a>
+              <a href="/messages" className="text-sm text-gray-400 hover:text-gray-100 transition-colors">
+                All Messages
+              </a>
               <a href="/csam" className="text-sm text-gray-400 hover:text-gray-100 transition-colors">
                 CSAM Queue
               </a>
