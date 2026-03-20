@@ -1,17 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { makeDeviceSecret, makeMessage } from '../../helpers/factories';
-import { randomUUID } from 'crypto';
+import { makeMessage } from '../../helpers/factories';
+import { registerUser } from '../../helpers/auth';
 
 const API_URL = process.env['API_URL'] ?? 'http://localhost:3001';
-
-async function registerUser() {
-  const res = await fetch(`${API_URL}/api/auth/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ deviceSecret: makeDeviceSecret(), birthYear: 1995 }),
-  });
-  return res.json() as Promise<{ accessToken: string; refreshToken: string; slug: string; userId: string }>;
-}
 
 describe('POST /api/messages', () => {
   it('happy path: valid submission returns 202', async () => {
@@ -123,9 +114,9 @@ describe('GET /api/messages/inbox', () => {
   });
 
   it('returns paginated messages for authenticated user', async () => {
-    const { accessToken } = await registerUser();
+    const { cookie } = await registerUser();
     const res = await fetch(`${API_URL}/api/messages/inbox`, {
-      headers: { Authorization: `Bearer ${accessToken}` },
+      headers: { Cookie: cookie },
     });
     expect(res.status).toBe(200);
     const data = await res.json() as { items: unknown[]; nextCursor: string | null; hasMore: boolean };

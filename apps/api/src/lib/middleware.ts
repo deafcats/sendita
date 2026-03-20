@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyAccessToken, type TokenPayload } from './auth/jwt';
+import {
+  getSessionTokenFromCookies,
+  getSessionUserByToken,
+  type SessionUser,
+} from './auth/session';
 
 export interface AuthenticatedRequest extends NextRequest {
-  user: TokenPayload;
+  user: SessionUser;
 }
 
 export function unauthorized(message = 'Unauthorized'): NextResponse {
@@ -31,20 +35,17 @@ export function serverError(message = 'Internal server error'): NextResponse {
 
 export async function withAuth(
   req: NextRequest,
-  handler: (req: NextRequest, user: TokenPayload) => Promise<NextResponse>,
+  handler: (req: NextRequest, user: SessionUser) => Promise<NextResponse>,
 ): Promise<NextResponse> {
-  const authHeader = req.headers.get('authorization');
-  if (!authHeader?.startsWith('Bearer ')) {
-    return unauthorized();
+  const cookieToken = req.cookies.get('anon_inbox_session')?.value
+    ?? await getSessionTokenFromCookies();
+  const user = await getSessionUserByToken(cookieToken);
+
+  if (!user) {
+    return unauthorized('Session expired or invalid');
   }
 
-  const token = authHeader.slice(7);
-  try {
-    const payload = await verifyAccessToken(token);
-    return handler(req, payload);
-  } catch {
-    return unauthorized('Invalid or expired token');
-  }
+  return handler(req, user);
 }
 
 export function getClientIp(req: NextRequest): string {

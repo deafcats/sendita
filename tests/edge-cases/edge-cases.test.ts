@@ -1,18 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { makeDeviceSecret, makeMessage } from '../helpers/factories';
+import { makeMessage } from '../helpers/factories';
+import { registerUser } from '../helpers/auth';
 import { normalizeUnicode, isOnlyWhitespace } from '@anon-inbox/shared';
 import { RESERVED_SLUGS } from '@anon-inbox/shared';
 
 const API_URL = process.env['API_URL'] ?? 'http://localhost:3001';
-
-async function registerUser() {
-  const res = await fetch(`${API_URL}/api/auth/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ deviceSecret: makeDeviceSecret(), birthYear: 1995 }),
-  });
-  return res.json() as Promise<{ slug: string; accessToken: string }>;
-}
 
 describe('Edge cases: message body', () => {
   it('message of only Unicode control characters is rejected after normalization', async () => {
@@ -52,12 +44,12 @@ describe('Edge cases: message body', () => {
 });
 
 describe('Edge cases: slug routing', () => {
-  it('GET /to/invalid-slug returns 404 from link API', async () => {
+  it('GET /invalid-slug returns 404 from link API', async () => {
     const res = await fetch(`${API_URL}/api/links/zzzzzzinvalidslug99`);
     expect(res.status).toBe(404);
   });
 
-  it('GET /to/empty returns 404', async () => {
+  it('GET /empty returns 404', async () => {
     const res = await fetch(`${API_URL}/api/links/`);
     expect([404, 405]).toContain(res.status);
   });
@@ -96,8 +88,7 @@ describe('Edge cases: reserved slugs in message submission', () => {
 });
 
 describe('Edge cases: honeypot field validation (unit)', () => {
-  it('honeypot field is validated as max 0 chars in schema', () => {
-    // Verify the schema enforces website field is empty
+  it('honeypot field still allows an empty string but rejects populated text in a stricter schema', () => {
     const { z } = require('zod');
     const schema = z.object({
       website: z.string().max(0).optional(),

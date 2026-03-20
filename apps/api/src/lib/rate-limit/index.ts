@@ -53,7 +53,7 @@ export async function checkFingerprintLimit(
   const captchaKey = `rl:captcha-required:${fingerprintHash}`;
 
   // Check if CAPTCHA is already required
-  const captchaRequired = await get(captchaKey);
+  const existingCaptchaRequirement = await get(captchaKey);
 
   const count = await increment(
     key,
@@ -61,6 +61,7 @@ export async function checkFingerprintLimit(
   );
   const allowed = count <= RATE_LIMIT.FINGERPRINT_GLOBAL_COUNT;
 
+  let requiresCaptchaNow = existingCaptchaRequirement === '1';
   if (!allowed) {
     const violations = await increment(
       violationsKey,
@@ -68,6 +69,7 @@ export async function checkFingerprintLimit(
     );
     if (violations >= RATE_LIMIT.CAPTCHA_VIOLATION_THRESHOLD) {
       await setWithTtl(captchaKey, '1', RATE_LIMIT.CAPTCHA_LOCK_SECONDS);
+      requiresCaptchaNow = true;
     }
   }
 
@@ -77,7 +79,7 @@ export async function checkFingerprintLimit(
     resetAt: new Date(
       Date.now() + RATE_LIMIT.FINGERPRINT_GLOBAL_WINDOW_SECONDS * 1000,
     ),
-    requiresCaptcha: captchaRequired === '1',
+    requiresCaptcha: requiresCaptchaNow,
   };
 }
 

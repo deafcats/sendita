@@ -4,11 +4,11 @@ import { getPrimaryClient } from '@anon-inbox/db';
 import { users } from '@anon-inbox/db';
 import { withAuth } from '@/lib/middleware';
 import { getAccountDeletionQueue } from '@anon-inbox/queue';
-import { revokeAllUserTokens } from '@/lib/auth/jwt';
+import { revokeAllUserSessions } from '@/lib/auth/session';
 
 export async function DELETE(req: NextRequest): Promise<NextResponse> {
   return withAuth(req, async (_req, user) => {
-    const userId = user.sub as string;
+    const userId = user.id;
     const db = getPrimaryClient();
 
     // Soft delete
@@ -18,7 +18,7 @@ export async function DELETE(req: NextRequest): Promise<NextResponse> {
       .where(eq(users.id, userId));
 
     // Revoke all sessions immediately
-    await revokeAllUserTokens(userId);
+    await revokeAllUserSessions(userId);
 
     // Enqueue hard deletion job (runs within 30 days)
     const queue = getAccountDeletionQueue();

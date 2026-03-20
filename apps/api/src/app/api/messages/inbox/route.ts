@@ -11,7 +11,7 @@ const PAGE_SIZE = 20;
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   return withAuth(req, async (_req, user) => {
-    const userId = user.sub as string;
+    const userId = user.id;
     const { searchParams } = new URL(req.url);
     const cursorParam = searchParams.get('cursor');
 
@@ -27,6 +27,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       or(
         eq(messages.status, 'approved'),
         eq(messages.status, 'flagged'),
+        eq(messages.status, 'blocked'),
       ),
     ];
 

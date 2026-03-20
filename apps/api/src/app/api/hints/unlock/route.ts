@@ -19,7 +19,7 @@ const unlockSchema = z.object({
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
   return withAuth(req, async (_req, user) => {
-    const userId = user.sub as string;
+    const userId = user.id;
     let body: unknown;
     try {
       body = await req.json();

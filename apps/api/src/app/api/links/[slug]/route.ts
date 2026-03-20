@@ -21,9 +21,13 @@ export async function GET(
   const cached = await redis.get(cacheKey);
 
   if (cached) {
-    return NextResponse.json(JSON.parse(cached), {
-      headers: { 'Cache-Control': 'public, max-age=30, stale-while-revalidate=30' },
-    });
+    try {
+      return NextResponse.json(JSON.parse(cached), {
+        headers: { 'Cache-Control': 'public, max-age=30, stale-while-revalidate=30' },
+      });
+    } catch {
+      await redis.del(cacheKey);
+    }
   }
 
   const db = getReplicaClient();

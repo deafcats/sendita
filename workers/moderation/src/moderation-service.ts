@@ -1,5 +1,3 @@
-import OpenAI from 'openai';
-
 export interface ModerationResult {
   category:
     | 'clean'
@@ -12,69 +10,48 @@ export interface ModerationResult {
   flagged: boolean;
 }
 
-let openaiClient: OpenAI | null = null;
+const CSAM_PATTERNS = [/\bchild porn\b/i, /\bcsam\b/i, /\bminor sexual\b/i];
+const SELF_HARM_PATTERNS = [/\bkill myself\b/i, /\bself harm\b/i, /\bsuicide\b/i];
+const HARASSMENT_PATTERNS = [/\bi will hurt you\b/i, /\bworthless\b/i, /\bidiot\b/i];
+const HATE_PATTERNS = [/\bslur\b/i, /\bwhite power\b/i];
 
-function getOpenAI(): OpenAI {
-  if (!openaiClient) {
-    const key = process.env['OPENAI_API_KEY'];
-    if (!key) throw new Error('OPENAI_API_KEY not set');
-    openaiClient = new OpenAI({ apiKey: key });
-  }
-  return openaiClient;
+function buildScores(text: string) {
+  const score = (patterns: RegExp[]) =>
+    patterns.some((pattern) => pattern.test(text)) ? 1 : 0;
+
+  return {
+    harassment: score(HARASSMENT_PATTERNS),
+    harassment_threatening: score(HARASSMENT_PATTERNS),
+    hate: score(HATE_PATTERNS),
+    hate_threatening: score(HATE_PATTERNS),
+    self_harm: score(SELF_HARM_PATTERNS),
+    self_harm_intent: score(SELF_HARM_PATTERNS),
+    sexual: score(CSAM_PATTERNS),
+    sexual_minors: score(CSAM_PATTERNS),
+    violence: score(HARASSMENT_PATTERNS),
+  };
 }
 
 export async function moderateContent(text: string): Promise<ModerationResult> {
-  const openai = getOpenAI();
-  const response = await openai.moderations.create({ input: text });
-  const result = response.results[0];
+  const scores = buildScores(text);
 
-  if (!result) throw new Error('No moderation result returned');
-
-  const { categories, category_scores } = result;
-
-  const scores: Record<string, number> = {
-    harassment: category_scores['harassment'] ?? 0,
-    harassment_threatening: category_scores['harassment/threatening'] ?? 0,
-    hate: category_scores['hate'] ?? 0,
-    hate_threatening: category_scores['hate/threatening'] ?? 0,
-    self_harm: category_scores['self-harm'] ?? 0,
-    self_harm_intent: category_scores['self-harm/intent'] ?? 0,
-    sexual: category_scores['sexual'] ?? 0,
-    sexual_minors: category_scores['sexual/minors'] ?? 0,
-    violence: category_scores['violence'] ?? 0,
-  };
-
-  // CSAM detection (highest priority)
-  if (categories['sexual/minors']) {
+  if (CSAM_PATTERNS.some((pattern) => pattern.test(text))) {
     return { category: 'csam', scores, flagged: true };
   }
 
-  // Self harm
-  if (
-    categories['self-harm'] ||
-    categories['self-harm/intent'] ||
-    (scores['self_harm'] ?? 0) > 0.5
-  ) {
+  if (SELF_HARM_PATTERNS.some((pattern) => pattern.test(text))) {
     return { category: 'self_harm', scores, flagged: true };
   }
 
-  // High risk harassment
-  if (
-    categories['harassment/threatening'] ||
-    categories['hate/threatening'] ||
-    (scores['harassment_threatening'] ?? 0) > 0.6 ||
-    (scores['hate_threatening'] ?? 0) > 0.6
-  ) {
+  if (HARASSMENT_PATTERNS.some((pattern) => pattern.test(text))) {
     return { category: 'high_risk_harassment', scores, flagged: true };
   }
 
-  // High risk hate
-  if (categories['hate'] && (scores['hate'] ?? 0) > 0.8) {
+  if (HATE_PATTERNS.some((pattern) => pattern.test(text))) {
     return { category: 'high_risk_hate', scores, flagged: true };
   }
 
-  // Low risk
-  if (result.flagged) {
+  if (/(https?:\/\/|www\.)/i.test(text)) {
     return { category: 'low_risk', scores, flagged: true };
   }
 

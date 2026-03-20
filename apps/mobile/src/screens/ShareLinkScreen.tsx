@@ -19,7 +19,7 @@ interface Props {
 const APP_URL = process.env['EXPO_PUBLIC_APP_URL'] ?? 'https://askme.app';
 
 export function ShareLinkScreen({ slug, displayName, onBack }: Props) {
-  const shareUrl = `${APP_URL}/to/${slug}`;
+  const shareUrl = `${APP_URL}/${slug}`;
   const name = displayName ?? 'your inbox';
 
   const handleCopy = useCallback(async () => {

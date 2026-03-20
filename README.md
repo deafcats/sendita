@@ -1,6 +1,6 @@
-# Anon Inbox
+# Sendita
 
-A production-ready anonymous inbox platform. Users share a short link; anyone can send them anonymous messages without creating an account. Built with React Native (Expo), Next.js, Node.js services, PostgreSQL, and Redis.
+A web-first streamer question inbox. Streamers get a permanent public link, fans submit questions without accounts, and the streamer manages everything from a browser dashboard.
 
 ## Monorepo Structure
 
@@ -8,15 +8,15 @@ A production-ready anonymous inbox platform. Users share a short link; anyone ca
 anon-inbox/
 ├── apps/
 │   ├── api/          # Next.js API service
-│   ├── web/          # Next.js submission page (/to/[slug])
-│   ├── mobile/       # React Native + Expo (iOS & Android)
-│   └── admin/        # Internal admin dashboard (IP-allowlisted)
+│   ├── web/          # Next.js public site + dashboard
+│   ├── mobile/       # Legacy React Native + Expo app
+│   └── admin/        # Internal admin dashboard
 ├── packages/
 │   ├── db/           # Drizzle ORM schema + migrations
 │   ├── shared/       # Shared types, constants, utilities
 │   └── queue/        # BullMQ queue definitions
 ├── workers/
-│   ├── moderation/   # AI content moderation worker
+│   ├── moderation/   # Optional async moderation worker
 │   ├── push/         # Push notification worker (Expo)
 │   └── prompts/      # Engagement prompt worker
 └── tests/
@@ -54,9 +54,6 @@ cp .env.example .env
 # Run database migrations
 pnpm --filter @anon-inbox/db db:migrate
 
-# Seed engagement prompts
-psql $DATABASE_URL < packages/db/src/migrations/seed-prompts.sql
-
 # Start all apps in development
 pnpm dev
 ```
@@ -90,44 +87,42 @@ API_URL=http://localhost:3001 pnpm vitest run tests/edge-cases/
 
 See `.env.example` for all required and optional variables.
 
-**Required for production:**
+**Required for the web-first MVP:**
 - `DATABASE_URL` — PostgreSQL primary connection string
 - `REDIS_URL` — Redis connection string
-- `JWT_SECRET` — 256-bit secret for JWT signing
 - `ENCRYPTION_KEY` — 32-byte hex key for AES-256 message encryption
 - `IP_HASH_SALT` — Daily-rotating salt for IP hashing
-- `OPENAI_API_KEY` — For content moderation
-- `EXPO_ACCESS_TOKEN` — For push notifications
-- `STRIPE_SECRET_KEY` + `STRIPE_WEBHOOK_SECRET` — For billing
+- `NEXT_PUBLIC_API_URL` — Browser-facing API base URL
+- `NEXT_PUBLIC_APP_URL` — Public web app base URL
 
 ## Architecture Overview
 
-See the full architecture plan in `.cursor/plans/`.
+See `PROJECT_OVERVIEW.md` for the current architecture brief, target web-first MVP, tech stack, keep/refactor/defer decisions, and Railway deployment shape.
 
 ### Key Design Decisions
 
 - **No sender accounts**: Senders need nothing — just a link
-- **Async message processing**: API returns 202 immediately; moderation runs in BullMQ workers
+- **Web auth via session cookies**: Jake logs in with email/password, not device tokens
+- **Classic moderation rules**: Blocked/flagged keywords are owned by Jake, no LLM moderation in the main flow
 - **Cursor-based pagination**: Inbox dashboard uses keyset pagination, never offset
 - **AES-256 encryption at rest**: All message bodies encrypted; keys in secrets manager
 - **IP hashing**: SHA-256 with daily-rotating salt — irreversible within the day
 - **Hot inbox protection**: Per-inbox 200msg/hour limit; excess delayed to secondary queue
 - **Shadow banning**: Abusive senders blocked silently (they see 202, message never delivered)
-- **CSAM pipeline**: Automatic detection → admin review queue → NCMEC submission within 24h
 
 ## Deployment
 
-- **API + Web + Admin**: Deploy to Railway as separate buildpack-backed services
-- **Workers**: Deploy to Railway as long-running worker services
+- **API + Web**: Deploy to Railway as separate buildpack-backed services
+- **Workers**: Optional for the current MVP
 - **Database**: Use Railway Postgres or another managed PostgreSQL service
 - **Redis**: Use Railway Redis or another managed Redis service
-- **Mobile**: Not deployed on Railway; ship separately via Expo / app stores
+- **Mobile**: Deferred from the current MVP
 
 See `RAILWAY.md` for the exact per-service Railway settings, build commands, start commands, required environment variables, and rollout order.
 
 ## Phases
 
-- **Phase 1** (Core): Auth, slugs, message submission, inbox dashboard, push notifications
-- **Phase 2** (Safety): Moderation worker, rate limiting, CSAM pipeline, admin dashboard
-- **Phase 3** (Monetization): Hint system, Stripe billing, IAP
-- **Phase 4** (Growth): Engagement prompts, viral loop, analytics, vanity slugs
+- **Phase 1** (Core): web auth, slugs, question submission, dashboard inbox
+- **Phase 2** (Safety): classic moderation rules, spam limits, reports
+- **Phase 3** (Product): analytics depth, moderation UX, creator settings
+- **Phase 4** (Expansion): monetization, async workers, legacy cleanup

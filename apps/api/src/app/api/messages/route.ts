@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { eq, isNull } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { getPrimaryClient } from '@anon-inbox/db';
 import { users, messages, messageMetadata } from '@anon-inbox/db';
-import { createHash } from 'crypto';
 import {
   normalizeUnicode,
   isOnlyWhitespace,
@@ -21,12 +20,11 @@ import {
   checkPerInboxLimit,
   isShadowBanned,
 } from '@/lib/rate-limit/index';
-import { getModerationQueue } from '@anon-inbox/queue';
 import { badRequest, notFound, tooManyRequests, serverError, getClientIp } from '@/lib/middleware';
 import { encrypt } from '@/lib/encryption/index';
 import { getRedisClient, setNx } from '@/lib/redis';
+import { moderateQuestion } from '@/lib/moderation/classic';
 
-const KEYWORD_BLOCKLIST = [/\bcsam\b/i, /child\s+porn/i, /cp\s+link/i];
 const HONEYPOT_FIELD = 'website'; // bots tend to fill this
 
 const submitSchema = z.object({
@@ -35,8 +33,13 @@ const submitSchema = z.object({
   idempotencyKey: z.string().uuid(),
   fingerprintHash: z.string().max(128).optional(),
   sendDelayMs: z.number().int().min(0).max(60000).optional(),
+  captchaToken: z.string().min(1).optional(),
   [HONEYPOT_FIELD]: z.string().optional(), // validated separately — filled = silent block
 });
+
+export async function OPTIONS(): Promise<NextResponse> {
+  return new NextResponse(null, { status: 204 });
+}
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
   let body: unknown;
@@ -55,6 +58,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     idempotencyKey,
     fingerprintHash: clientFingerprintHash,
     sendDelayMs,
+    captchaToken,
     [HONEYPOT_FIELD]: honeypot,
   } = parsed.data;
 
@@ -86,11 +90,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return badRequest(`Message exceeds ${MESSAGE_MAX_LENGTH} character limit`);
   }
 
-  // Keyword pre-filter
-  const hasBlockedKeyword = KEYWORD_BLOCKLIST.some((re) =>
-    re.test(normalizedBody),
-  );
-
   // IP and fingerprint metadata
   const ip = getClientIp(req);
   const ipSalt = process.env['IP_HASH_SALT'] ?? 'default-salt';
@@ -111,7 +110,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   // Lookup inbox owner
   const db = getPrimaryClient();
   const [owner] = await db
-    .select({ id: users.id, isBanned: users.isBanned, deletedAt: users.deletedAt })
+    .select({
+      id: users.id,
+      isBanned: users.isBanned,
+      deletedAt: users.deletedAt,
+      blockedKeywords: users.blockedKeywords,
+      flaggedKeywords: users.flaggedKeywords,
+      requireReviewForUnknownLinks: users.requireReviewForUnknownLinks,
+    })
     .from(users)
     .where(eq(users.slug, slug))
     .limit(1);
@@ -131,20 +137,29 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return tooManyRequests();
   }
 
-  if (!fpLimit.allowed) {
+  if (fpLimit.requiresCaptcha && !captchaToken) {
     return NextResponse.json(
       {
-        error: 'Rate limit exceeded',
-        code: 'RATE_LIMITED',
-        requiresCaptcha: fpLimit.requiresCaptcha,
+        error: 'Human verification required',
+        code: 'CAPTCHA_REQUIRED',
+        requiresCaptcha: true,
       },
       { status: 429 },
     );
   }
 
+  if (!fpLimit.allowed && !captchaToken) {
+    return tooManyRequests('Rate limit exceeded');
+  }
+
   // Shadow ban check — respond 202 silently
   const banned = fingerprintHash ? await isShadowBanned(fingerprintHash) : false;
-  const status = banned || hasBlockedKeyword ? 'shadow_blocked' : 'pending';
+  const moderationDecision = moderateQuestion(normalizedBody, {
+    blockedKeywords: owner.blockedKeywords,
+    flaggedKeywords: owner.flaggedKeywords,
+    requireReviewForUnknownLinks: owner.requireReviewForUnknownLinks,
+  });
+  const status = banned ? 'shadow_blocked' : moderationDecision.status;
 
   // Per-inbox throttle check
   const inboxThrottle = await checkPerInboxLimit(owner.id);
@@ -188,44 +203,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     // Update idempotency key with the actual message ID (was 'processing')
     await redis.setex(idempotencyRedisKey, 86400, message.id);
 
-    // Enqueue for moderation (unless already shadow_blocked)
-    if (status === 'pending' && !inboxThrottle.throttled) {
-      const queue = getModerationQueue();
-      await queue.add('moderate', {
-        messageId: message.id,
-        inboxOwnerId: owner.id,
-        body: normalizedBody,
-        metadata: {
-          ipHash,
-          fingerprintHash,
-          userAgent,
-          deviceType,
-          regionCountry,
-          regionState,
-          sendDelayMs: sendDelayMs ?? null,
-        },
-      });
-    } else if (status === 'pending' && inboxThrottle.throttled) {
-      // Delayed queue for hot inbox
-      const queue = getModerationQueue();
-      await queue.add(
-        'moderate',
-        {
-          messageId: message.id,
-          inboxOwnerId: owner.id,
-          body: normalizedBody,
-          metadata: {
-            ipHash,
-            fingerprintHash,
-            userAgent,
-            deviceType,
-            regionCountry,
-            regionState,
-            sendDelayMs: sendDelayMs ?? null,
-          },
-        },
-        { delay: 30000 }, // 30s delay for throttled inboxes
-      );
+    if (inboxThrottle.throttled && status === 'approved') {
+      await db
+        .update(messages)
+        .set({ status: 'flagged' })
+        .where(eq(messages.id, message.id));
     }
 
     return NextResponse.json({ success: true }, { status: 202 });

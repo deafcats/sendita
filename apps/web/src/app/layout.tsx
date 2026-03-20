@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Anonymous Inbox',
-  description: 'Send anonymous messages to anyone',
+  title: 'Sendita',
+  description: 'A web-first streamer question inbox',
 };
 
 export default function RootLayout({

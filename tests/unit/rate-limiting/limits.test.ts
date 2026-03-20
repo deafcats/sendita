@@ -28,17 +28,17 @@ vi.mock('../../../apps/api/src/lib/redis', () => ({
 
 describe('RATE_LIMIT constants', () => {
   it('has correct IP per inbox limit', () => {
-    expect(RATE_LIMIT.IP_PER_INBOX_COUNT).toBe(5);
+    expect(RATE_LIMIT.IP_PER_INBOX_COUNT).toBe(15);
     expect(RATE_LIMIT.IP_PER_INBOX_WINDOW_SECONDS).toBe(600);
   });
 
   it('has correct IP global limit', () => {
-    expect(RATE_LIMIT.IP_GLOBAL_COUNT).toBe(20);
+    expect(RATE_LIMIT.IP_GLOBAL_COUNT).toBe(30);
     expect(RATE_LIMIT.IP_GLOBAL_WINDOW_SECONDS).toBe(3600);
   });
 
   it('has correct fingerprint limit', () => {
-    expect(RATE_LIMIT.FINGERPRINT_GLOBAL_COUNT).toBe(10);
+    expect(RATE_LIMIT.FINGERPRINT_GLOBAL_COUNT).toBe(15);
     expect(RATE_LIMIT.FINGERPRINT_GLOBAL_WINDOW_SECONDS).toBe(3600);
   });
 
@@ -47,12 +47,12 @@ describe('RATE_LIMIT constants', () => {
     expect(RATE_LIMIT.INBOX_HOURLY_WINDOW_SECONDS).toBe(3600);
   });
 
-  it('CAPTCHA threshold is 3 violations', () => {
-    expect(RATE_LIMIT.CAPTCHA_VIOLATION_THRESHOLD).toBe(3);
+  it('CAPTCHA threshold is a single violation after the 15-question limit', () => {
+    expect(RATE_LIMIT.CAPTCHA_VIOLATION_THRESHOLD).toBe(1);
   });
 
-  it('CAPTCHA lock is 24 hours', () => {
-    expect(RATE_LIMIT.CAPTCHA_LOCK_SECONDS).toBe(86400);
+  it('CAPTCHA lock lasts 1 hour', () => {
+    expect(RATE_LIMIT.CAPTCHA_LOCK_SECONDS).toBe(3600);
   });
 });
 

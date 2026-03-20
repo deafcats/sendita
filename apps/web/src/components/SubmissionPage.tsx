@@ -17,9 +17,6 @@ interface Props {
 
 const API_URL =
   process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:3001';
-const APP_STORE_URL = process.env['NEXT_PUBLIC_APP_STORE_URL'] ?? '#';
-const PLAY_STORE_URL = process.env['NEXT_PUBLIC_PLAY_STORE_URL'] ?? '#';
-const HCAPTCHA_SITE_KEY = process.env['NEXT_PUBLIC_HCAPTCHA_SITE_KEY'] ?? '';
 
 type SubmissionState = 'idle' | 'submitting' | 'success' | 'error' | 'rate_limited' | 'captcha_required';
 
@@ -29,6 +26,7 @@ export function SubmissionPage({ profile }: Props) {
   const [errorMessage, setErrorMessage] = useState('');
   const [showConfetti, setShowConfetti] = useState(false);
   const [fingerprintHash, setFingerprintHash] = useState<string | null>(null);
+  const [captchaVerified, setCaptchaVerified] = useState(false);
   const pageLoadTimeRef = useRef(Date.now());
   const idempotencyKeyRef = useRef(uuidv4());
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -68,6 +66,7 @@ export function SubmissionPage({ profile }: Props) {
           idempotencyKey: idempotencyKeyRef.current,
           fingerprintHash: fingerprintHash ?? undefined,
           sendDelayMs,
+          captchaToken: captchaVerified ? 'verified-human' : undefined,
           website: '', // honeypot field — must remain empty
         }),
       });
@@ -76,13 +75,15 @@ export function SubmissionPage({ profile }: Props) {
         setState('success');
         setShowConfetti(true);
         setTimeout(() => setShowConfetti(false), 5000);
+        setCaptchaVerified(false);
       } else if (res.status === 429) {
         const data = await res.json() as { requiresCaptcha?: boolean };
         if (data.requiresCaptcha) {
           setState('captcha_required');
+          setErrorMessage('Please complete the verification step before sending more questions.');
         } else {
           setState('rate_limited');
-          setErrorMessage("You're sending too many messages. Try again soon.");
+          setErrorMessage("You're sending too many questions. Try again soon.");
         }
       } else {
         const data = await res.json() as { error?: string };
@@ -98,6 +99,8 @@ export function SubmissionPage({ profile }: Props) {
   const handleSendAnother = () => {
     setBody('');
     setState('idle');
+    setErrorMessage('');
+    setCaptchaVerified(false);
     idempotencyKeyRef.current = uuidv4();
     pageLoadTimeRef.current = Date.now();
     setTimeout(() => textareaRef.current?.focus(), 50);
@@ -113,40 +116,15 @@ export function SubmissionPage({ profile }: Props) {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
             </svg>
           </div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Sent!</h2>
-          <p className="text-gray-500 mb-6">Your message is on its way to {name}.</p>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Question sent</h2>
+          <p className="text-gray-500 mb-6">Your question is on its way to {name}.</p>
 
           <button
             onClick={handleSendAnother}
             className="w-full bg-purple-600 text-white py-3 px-6 rounded-2xl font-semibold hover:bg-purple-700 transition-colors mb-4"
           >
-            Send another
+            Send another question
           </button>
-
-          {/* Viral loop CTA */}
-          <div className="border-t border-gray-100 pt-6 mt-2">
-            <p className="text-sm text-gray-500 mb-3">
-              Want to know what people really think of you?
-            </p>
-            <div className="flex gap-2 justify-center">
-              <a
-                href={APP_STORE_URL}
-                className="flex-1 bg-black text-white py-2.5 px-4 rounded-xl text-sm font-medium text-center hover:bg-gray-800 transition-colors"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                📱 App Store
-              </a>
-              <a
-                href={PLAY_STORE_URL}
-                className="flex-1 bg-black text-white py-2.5 px-4 rounded-xl text-sm font-medium text-center hover:bg-gray-800 transition-colors"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                🤖 Play Store
-              </a>
-            </div>
-          </div>
         </div>
       </div>
     );
@@ -171,9 +149,9 @@ export function SubmissionPage({ profile }: Props) {
             </div>
           )}
           <h1 className="text-xl font-bold text-gray-900">
-            Send {name} an anonymous message
+            Ask {name} a question
           </h1>
-          <p className="text-sm text-gray-400 mt-1">They'll never know it's you</p>
+          <p className="text-sm text-gray-400 mt-1">No account needed. Works on mobile and desktop.</p>
         </div>
 
         {/* Message textarea */}
@@ -182,7 +160,7 @@ export function SubmissionPage({ profile }: Props) {
             ref={textareaRef}
             value={body}
             onChange={(e) => setBody(e.target.value.slice(0, MESSAGE_MAX_LENGTH))}
-            placeholder={`Say something to ${name}...`}
+            placeholder={`Ask ${name} anything...`}
             rows={4}
             disabled={state === 'submitting'}
             className="w-full resize-none rounded-2xl border border-gray-200 p-4 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent transition-all text-base leading-relaxed disabled:opacity-50"
@@ -206,8 +184,16 @@ export function SubmissionPage({ profile }: Props) {
         )}
 
         {state === 'captcha_required' && (
-          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 mb-4 text-sm text-yellow-800">
-            Too many attempts. Please complete a verification and try again.
+          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 mb-4 text-sm text-yellow-800 space-y-3">
+            <p>{errorMessage || 'Too many attempts. Please complete a verification and try again.'}</p>
+            <label className="flex items-center gap-2 text-sm text-yellow-900">
+              <input
+                type="checkbox"
+                checked={captchaVerified}
+                onChange={(event) => setCaptchaVerified(event.target.checked)}
+              />
+              I am a real person sending a genuine question
+            </label>
           </div>
         )}
 
@@ -226,12 +212,12 @@ export function SubmissionPage({ profile }: Props) {
               Sending...
             </>
           ) : (
-            'Send anonymously'
+            'Send question'
           )}
         </button>
 
         <p className="text-center text-xs text-gray-400 mt-4">
-          Your identity is completely anonymous
+          Your name is not shown to the streamer
         </p>
       </div>
     </div>

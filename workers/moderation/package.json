@@ -12,7 +12,6 @@
     "drizzle-orm": "^0.38.3",
     "bullmq": "^5.32.2",
     "ioredis": "^5.4.2",
-    "openai": "^4.78.1",
     "axios": "^1.7.9",
     "tsx": "^4.19.2",
     "@anon-inbox/db": "workspace:*",

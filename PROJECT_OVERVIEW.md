@@ -1,173 +1,243 @@
-# Anon Inbox — Project Overview
+# Sendita — Web-First MVP Architecture
 
-## What Is This?
+## Summary
 
-Anon Inbox is a full-stack anonymous messaging platform. A user creates an account and gets a short shareable link (e.g. `anon.app/to/jake`). Anyone can open that link and send them a message — no account, no login, no identity revealed. The receiver reads messages in a mobile app (iOS / Android) or web dashboard.
+This repository now implements a **web-first streamer Q&A MVP**:
 
-Think: anonymous Q&A / confession box, built to production standards with encryption, moderation, abuse protection, and monetization.
+- Jake registers with **email + password**
+- Jake gets a permanent public question link at `/[username]`
+- fans submit questions from mobile or desktop with no account
+- Jake reads and moderates questions in a **browser dashboard**
+- moderation is **classic rule-based**, not LLM-based
+- auth is **session-cookie based**, not token-based in the product flow
 
----
+The project keeps the durable public slug model and does **not** pivot to a `kahoot.it` room/session model for MVP.
 
-## Tech Stack at a Glance
+## Architecture
 
-| Layer | Technology |
-|---|---|
-| API (backend) | Next.js API service |
-| Web (submission page) | Next.js |
-| Mobile app | React Native + Expo (iOS & Android) |
-| Admin dashboard | Next.js (IP-allowlisted, internal) |
-| Database | PostgreSQL 16 via Drizzle ORM |
-| Queue / workers | BullMQ (backed by Redis) |
-| Push notifications | Expo Push API |
-| Content moderation | OpenAI + Google Perspective API |
-| Payments | Stripe |
-| Captcha | hCaptcha |
-| Bot fingerprinting | FingerprintJS |
-| Error tracking | Sentry |
-| Analytics | Tinybird |
-| Local infra | Docker Compose (Postgres + Redis) |
+```mermaid
+flowchart LR
+    audience[AudienceUser] --> publicLink["PublicLink /{username}"]
+    publicLink --> submissionUi[ResponsiveSubmissionUI]
+    submissionUi --> submitApi["POST /api/messages"]
+    submitApi --> db[(Postgres)]
+    submitApi --> redis[(Redis)]
 
----
+    jake[StreamerJake] --> authUi[LoginRegisterPages]
+    authUi --> authApi[SessionAuthAPI]
+    authApi --> db
+
+    jake --> dashboard[WebDashboard]
+    dashboard --> inboxApi["GET /api/messages/inbox"]
+    dashboard --> detailApi["GET/PATCH /api/messages/{id}"]
+    dashboard --> analyticsApi["GET /api/dashboard/analytics"]
+    dashboard --> settingsApi["GET/PUT /api/dashboard/settings"]
+    inboxApi --> db
+    detailApi --> db
+    analyticsApi --> db
+    settingsApi --> db
+```
 
 ## Monorepo Structure
 
-This is a **pnpm workspace monorepo** managed with **Turborepo**.
-
-```
+```text
 anon-inbox/
 ├── apps/
-│   ├── api/        # Next.js backend — all REST API routes
-│   ├── web/        # Next.js submission page (/to/[slug]) — public-facing
-│   ├── mobile/     # React Native + Expo — the receiver's app
-│   └── admin/      # Internal admin dashboard (IP-allowlisted)
-│
+│   ├── api/       Next.js backend API
+│   ├── web/       Next.js public site + streamer dashboard
+│   ├── mobile/    legacy Expo / React Native app
+│   └── admin/     internal moderation dashboard
 ├── packages/
-│   ├── db/         # Drizzle ORM schema, migrations, DB client
-│   ├── shared/     # Types, constants, and utilities shared across apps
-│   └── queue/      # BullMQ queue definitions (job types, queue names)
-│
+│   ├── db/        Drizzle schema + migrations
+│   ├── shared/    shared constants, types, utils
+│   └── queue/     BullMQ queues
 ├── workers/
-│   ├── moderation/ # AI content moderation worker (runs after message is saved)
-│   ├── push/       # Push notification worker (sends Expo push after moderation)
-│   └── prompts/    # Engagement prompt worker (scheduled nudges)
-│
+│   ├── moderation/
+│   ├── push/
+│   └── prompts/
 └── tests/
-    ├── unit/           # Fast Vitest unit tests (no DB/Redis required)
-    ├── integration/    # Vitest integration tests (real DB + Redis)
-    ├── e2e/web/        # Playwright browser tests
-    ├── e2e/mobile/     # Detox mobile tests
-    ├── load/           # k6 load testing scenarios
-    ├── security/       # Auth attack / abuse tests
-    ├── edge-cases/     # Boundary condition tests
-    ├── race-conditions/# Concurrency safety tests
-    ├── fixtures/       # Seed data
-    └── helpers/        # Test factories and utilities
+    ├── unit/
+    ├── integration/
+    ├── security/
+    ├── edge-cases/
+    ├── race-conditions/
+    └── e2e/web/
 ```
 
----
+## Tech Stack
 
-## How a Message Flows Through the System
+### Frontend
 
-```
-1. Sender opens  https://app.com/to/jake
-2. Web page (apps/web) renders the submission form
-3. Sender submits → POST /api/messages  (apps/api)
-4. API checks: rate limit, captcha, honeypot, idempotency key
-5. API encrypts message body (AES-256), writes to Postgres, returns 202
-6. Moderation job is pushed to BullMQ queue
-7. Moderation worker (workers/moderation) calls OpenAI + Perspective API
-8. If clean → push notification job queued
-9. Push worker (workers/push) sends Expo notification to receiver's device
-10. Receiver reads message in the mobile app or web dashboard
-```
+| Surface | Stack |
+|---|---|
+| `apps/web` | Next.js 15, React 19, TypeScript, Tailwind CSS |
+| `apps/admin` | Next.js 15, React 19, TypeScript, Tailwind CSS |
+| `apps/mobile` | Expo 52, React Native 0.76 |
 
----
+### Backend
 
-## Key API Routes
+| Area | Stack |
+|---|---|
+| API | Next.js route handlers |
+| Validation | Zod |
+| Auth | session cookies + database-backed sessions |
+| Password hashing | `bcryptjs` |
+| Database | PostgreSQL |
+| ORM | Drizzle ORM |
+| Cache / spam limits | Redis |
+| Queues | BullMQ |
 
-| Method | Route | What it does |
+### Product integrations
+
+| Concern | Tooling |
+|---|---|
+| Fingerprinting | FingerprintJS |
+| Error monitoring | Sentry |
+| Billing | Stripe, deferred from MVP |
+| Push notifications | Expo Push, deferred from MVP |
+| Moderation | classic keyword and rule-based checks |
+
+## What Is Implemented
+
+### Public audience flow
+
+- landing page in `apps/web/src/app/page.tsx`
+- public submission page in `apps/web/src/app/[slug]/page.tsx`
+- question submission UI in `apps/web/src/components/SubmissionPage.tsx`
+- public profile lookup in `apps/api/src/app/api/links/[slug]/route.ts`
+- question submission API in `apps/api/src/app/api/messages/route.ts`
+
+### Streamer web dashboard
+
+- login page in `apps/web/src/app/login/page.tsx`
+- registration page in `apps/web/src/app/register/page.tsx`
+- overview page in `apps/web/src/app/dashboard/page.tsx`
+- inbox page in `apps/web/src/app/dashboard/messages/page.tsx`
+- message detail page in `apps/web/src/app/dashboard/messages/[id]/page.tsx`
+- analytics page in `apps/web/src/app/dashboard/analytics/page.tsx`
+- moderation rules page in `apps/web/src/app/dashboard/moderation/page.tsx`
+- account/settings page in `apps/web/src/app/dashboard/settings/page.tsx`
+
+### Supporting APIs
+
+| Method | Route | Purpose |
 |---|---|---|
-| POST | `/api/auth/register` | Create account, get JWT + refresh token |
-| POST | `/api/auth/login` | Login, get JWT + refresh token |
-| POST | `/api/auth/refresh` | Rotate refresh token, get new JWT |
-| DELETE | `/api/auth/logout` | Revoke session (blocklist JTI) |
-| GET | `/api/links` | Get the user's shareable inbox link |
-| POST | `/api/messages` | Submit an anonymous message (public, no auth) |
-| GET | `/api/messages` | List received messages (cursor-paginated, auth required) |
-| DELETE | `/api/messages/:id` | Delete a message |
-| POST | `/api/reports` | Report a message |
-| GET | `/api/hints` | Get purchased hints (who sent a message) |
-| POST | `/api/billing/checkout` | Start Stripe checkout session |
-| POST | `/api/billing/webhook` | Stripe webhook handler |
-| GET | `/api/health` | Health check |
+| `POST` | `/api/auth/register` | create streamer account and session |
+| `POST` | `/api/auth/login` | log into dashboard |
+| `GET` | `/api/auth/session` | fetch current session user |
+| `POST` | `/api/auth/logout` | log out and revoke current session |
+| `POST` | `/api/auth/refresh` | extend current session cookie |
+| `GET` | `/api/messages/inbox` | list questions for Jake |
+| `GET` | `/api/messages/[id]` | fetch one question |
+| `PATCH` | `/api/messages/[id]` | mark read or change status |
+| `GET` | `/api/dashboard/analytics` | dashboard summary counts |
+| `GET/PUT` | `/api/dashboard/settings` | public link and moderation settings |
 
----
+## Auth Model
 
-## Database Schema (tables)
+The old device-secret + JWT model has been replaced in the product flow by:
+
+- `users.email`
+- `users.passwordHash`
+- `user_sessions` table
+- `anon_inbox_session` HTTP-only cookie
+
+The public slug identity stays the same.
+
+## Moderation Model
+
+Moderation is no longer OpenAI or LLM based in the main product flow.
+
+Each streamer can define:
+
+- blocked keywords
+- flagged keywords
+- whether external links should be flagged
+
+Those rules are stored on the `users` record and applied synchronously during submission. This makes the inbox usable immediately in the web app without depending on an AI moderation worker.
+
+## Spam And CAPTCHA Policy
+
+The current MVP spam policy is:
+
+- allow up to **15** submissions per sender fingerprint in the active window
+- after that, require a verification step
+- keep Redis-backed idempotency and rate limiting
+- keep honeypot and minimum-send-delay bot checks
+
+## Database Model
+
+### Core tables in use
 
 | Table | Purpose |
 |---|---|
-| `users` | Accounts — auth credentials, slug, settings |
-| `messages` | Encrypted anonymous messages |
-| `reports` | User-submitted abuse reports |
-| `hints` | Purchased sender hints |
-| `subscriptions` | Stripe subscription records |
-| `prompts` | Engagement prompt templates |
-| `analytics` | Event tracking |
-| `audit` | Audit log for admin actions |
+| `users` | streamer account, slug, moderation settings |
+| `user_sessions` | web session storage |
+| `messages` | incoming encrypted questions |
+| `message_metadata` | abuse and moderation metadata |
+| `reports` | message reports |
+| `analytics_events` | event tracking |
+| `audit_log` | internal audit records |
 
----
+### Deferred or legacy tables
 
-## Security Features
-
-- **AES-256 encryption at rest** — all message bodies are encrypted before being stored
-- **IP hashing** — SHA-256 with a daily-rotating salt; sender IPs are never stored in plain text
-- **JWT blocklist** — logout actually invalidates the token (Redis JTI blocklist)
-- **Atomic refresh token rotation** — prevents replay attacks (single `UPDATE ... WHERE revokedAt IS NULL RETURNING *`)
-- **Honeypot field** — silent 202 for bots filling the hidden field
-- **Shadow banning** — abusive senders get a 202, message is silently discarded
-- **CSAM pipeline** — automatic detection → admin review queue → NCMEC submission
-- **Per-inbox rate limit** — 200 messages/hour max, excess queued to secondary
-
----
-
-## Deployment Targets
-
-| Service | Platform |
+| Table | Status |
 |---|---|
-| API + Web apps | Railway buildpack services |
-| Admin dashboard | Railway buildpack service |
-| Workers | Railway worker services |
-| PostgreSQL | Railway Postgres or managed PostgreSQL |
-| Redis | Railway Redis or managed Redis |
+| `device_sessions` | legacy mobile auth path |
+| `hints` | deferred |
+| `subscriptions` | deferred |
+| `engagement_prompts` | deferred |
 
----
+## MVP Route Map
 
-## Development Phases
+### Public
 
-- **Phase 1 — Core**: Auth, slugs, message submission, inbox dashboard, push notifications
-- **Phase 2 — Safety**: AI moderation, rate limiting, CSAM pipeline, admin dashboard
-- **Phase 3 — Monetization**: Hint system (pay to see who sent a message), Stripe billing, IAP
-- **Phase 4 — Growth**: Engagement prompts, viral loop, analytics, vanity slugs
+- `/`
+- `/[username]`
 
----
+### Private
 
-## Current Status
+- `/login`
+- `/register`
+- `/dashboard`
+- `/dashboard/messages`
+- `/dashboard/messages/[id]`
+- `/dashboard/analytics`
+- `/dashboard/moderation`
+- `/dashboard/settings`
 
-As of the last working session, the local dev environment was fully operational:
+## Railway Deployment
 
-| Layer | Status |
+### Recommended MVP topology
+
+| Service | Required? |
 |---|---|
-| Docker (Postgres port 5433, Redis 6379) | Running |
-| Database migrations | Applied |
-| Seed data (10 engagement prompts) | Seeded |
-| API (`localhost:3001`) | Running, all routes compiled |
-| Web (`localhost:3000`) | Running |
-| Unit tests (60 tests) | All passing |
-| Integration tests (18 tests) | All passing |
-| Security tests (9 tests) | All passing |
-| Edge case tests (8 tests) | All passing |
-| Race condition tests (3 tests) | All passing |
-| **Total: 98/98 tests** | **All passing** |
+| `apps/web` | yes |
+| `apps/api` | yes |
+| Railway Postgres | yes |
+| Railway Redis | yes |
 
-See `PROBLEMS_LOG.md` for a full log of bugs found and fixed during setup.
+### Optional / deferred
+
+| Service | Status |
+|---|---|
+| `apps/admin` | internal only |
+| `workers/moderation` | optional for future async workflows |
+| `workers/push` | deferred |
+| `workers/prompts` | deferred |
+| `apps/mobile` | legacy / deferred |
+
+## Product Recommendation
+
+The current plan is sensible.
+
+The best MVP path is:
+
+- keep the permanent public slug link
+- keep no-account audience submission
+- keep responsive web as the primary product surface
+- keep Railway as the deployment target
+- keep Redis-backed anti-spam protections
+- build everything Jake needs into the web dashboard
+
+Do not switch to a Kahoot-style room/session architecture for MVP unless the product later requires live host-controlled session state.

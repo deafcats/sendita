@@ -1,45 +1,64 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
+import { moderateQuestion } from '../../../apps/api/src/lib/moderation/classic';
 
-// Test moderation score mapping logic independently from OpenAI API
-describe('moderation result mapping', () => {
-  function mapModerationResult(categories: Record<string, boolean>, scores: Record<string, number>) {
-    if (categories['sexual/minors']) return 'csam';
-    if (categories['self-harm'] || categories['self-harm/intent'] || (scores['self_harm'] ?? 0) > 0.5) return 'self_harm';
-    if (categories['harassment/threatening'] || categories['hate/threatening'] || (scores['harassment_threatening'] ?? 0) > 0.6 || (scores['hate_threatening'] ?? 0) > 0.6) return 'high_risk_harassment';
-    if (categories['hate'] && (scores['hate'] ?? 0) > 0.8) return 'high_risk_hate';
-    if (Object.values(categories).some(Boolean)) return 'low_risk';
-    return 'clean';
-  }
-
-  it('returns csam for sexual/minors', () => {
-    expect(mapModerationResult({ 'sexual/minors': true }, {})).toBe('csam');
+describe('classic moderation rules', () => {
+  it('blocks a question containing a blocked keyword', () => {
+    expect(
+      moderateQuestion('this contains a spoiler', {
+        blockedKeywords: 'spoiler',
+        flaggedKeywords: '',
+        requireReviewForUnknownLinks: false,
+      }).status,
+    ).toBe('blocked');
   });
 
-  it('returns self_harm for self-harm category', () => {
-    expect(mapModerationResult({ 'self-harm': true }, {})).toBe('self_harm');
+  it('flags a question containing a flagged keyword', () => {
+    expect(
+      moderateQuestion('this feels like drama bait', {
+        blockedKeywords: '',
+        flaggedKeywords: 'drama',
+        requireReviewForUnknownLinks: false,
+      }).status,
+    ).toBe('flagged');
   });
 
-  it('returns self_harm when score exceeds threshold', () => {
-    expect(mapModerationResult({}, { self_harm: 0.6 })).toBe('self_harm');
+  it('flags a question containing an external link when that rule is enabled', () => {
+    expect(
+      moderateQuestion('check this out https://example.com', {
+        blockedKeywords: '',
+        flaggedKeywords: '',
+        requireReviewForUnknownLinks: true,
+      }).status,
+    ).toBe('flagged');
   });
 
-  it('returns high_risk_harassment for threatening harassment', () => {
-    expect(mapModerationResult({ 'harassment/threatening': true }, {})).toBe('high_risk_harassment');
+  it('flags repeated-character spam', () => {
+    expect(
+      moderateQuestion('loooooooooooooooooooooool', {
+        blockedKeywords: '',
+        flaggedKeywords: '',
+        requireReviewForUnknownLinks: false,
+      }).status,
+    ).toBe('flagged');
   });
 
-  it('returns high_risk_hate for high-score hate', () => {
-    expect(mapModerationResult({ hate: true }, { hate: 0.9 })).toBe('high_risk_hate');
+  it('approves a normal question', () => {
+    expect(
+      moderateQuestion('What game are you streaming tonight?', {
+        blockedKeywords: '',
+        flaggedKeywords: '',
+        requireReviewForUnknownLinks: false,
+      }).status,
+    ).toBe('approved');
   });
 
-  it('returns low_risk for general flag without specific category', () => {
-    expect(mapModerationResult({ harassment: true }, { hate: 0.3 })).toBe('low_risk');
-  });
-
-  it('returns clean for unflagged content', () => {
-    expect(mapModerationResult({}, {})).toBe('clean');
-  });
-
-  it('prioritizes csam over self_harm', () => {
-    expect(mapModerationResult({ 'sexual/minors': true, 'self-harm': true }, {})).toBe('csam');
+  it('prioritizes blocked keywords over flagged keywords', () => {
+    expect(
+      moderateQuestion('this spoiler is also drama', {
+        blockedKeywords: 'spoiler',
+        flaggedKeywords: 'drama',
+        requireReviewForUnknownLinks: false,
+      }).status,
+    ).toBe('blocked');
   });
 });

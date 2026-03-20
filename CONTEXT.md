@@ -20,7 +20,7 @@ An anonymous inbox platform. Users share a short link; anyone can send them anon
 anon-inbox/
 ├── apps/
 │   ├── api/        Next.js — all backend API routes (port 3001)
-│   ├── web/        Next.js — public submission page /to/[slug] (port 3000)
+│   ├── web/        Next.js — public submission page /[username] (port 3000)
 │   ├── admin/      Next.js — internal moderation dashboard (port 3002)
 │   └── mobile/     React Native + Expo — iOS & Android inbox app
 ├── packages/

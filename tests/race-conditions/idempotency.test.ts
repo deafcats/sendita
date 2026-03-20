@@ -1,21 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { makeDeviceSecret, makeMessage } from '../helpers/factories';
+import { makeMessage } from '../helpers/factories';
+import { makeCredentials, registerUser } from '../helpers/auth';
 import { randomUUID } from 'crypto';
 
 const API_URL = process.env['API_URL'] ?? 'http://localhost:3001';
 
-async function registerUser() {
-  const res = await fetch(`${API_URL}/api/auth/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ deviceSecret: makeDeviceSecret(), birthYear: 1995 }),
-  });
-  return res.json() as Promise<{ accessToken: string; slug: string }>;
-}
-
 describe('Race conditions: idempotency', () => {
   it('10 concurrent sends with same idempotency key create exactly 1 message', async () => {
-    const { slug, accessToken } = await registerUser();
+    const { slug, cookie } = await registerUser();
     const idempotencyKey = randomUUID();
     const msg = makeMessage({ slug, idempotencyKey, sendDelayMs: 2000 });
 
@@ -39,39 +31,39 @@ describe('Race conditions: idempotency', () => {
 
     // Verify at most 1 message exists (idempotency key deduplicated)
     const inbox = await fetch(`${API_URL}/api/messages/inbox`, {
-      headers: { Authorization: `Bearer ${accessToken}` },
+      headers: { Cookie: cookie },
     });
     const data = await inbox.json() as { items: unknown[] };
     expect(data.items.length).toBeLessThanOrEqual(1);
   }, 60000);
 });
 
-describe('Race conditions: refresh token rotation', () => {
-  it('concurrent refresh requests with same token: only 1 succeeds', async () => {
-    const reg = await fetch(`${API_URL}/api/auth/register`, {
+describe('Race conditions: concurrent login', () => {
+  it('concurrent login requests for the same account both produce valid session cookies', async () => {
+    const credentials = makeCredentials();
+    await fetch(`${API_URL}/api/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ deviceSecret: makeDeviceSecret(), birthYear: 1995 }),
+      body: JSON.stringify(credentials),
     });
-    const { refreshToken } = await reg.json() as { refreshToken: string };
 
-    // Fire 2 concurrent refreshes with same token
     const [res1, res2] = await Promise.all([
-      fetch(`${API_URL}/api/auth/refresh`, {
+      fetch(`${API_URL}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refreshToken }),
+        body: JSON.stringify({ email: credentials.email, password: credentials.password }),
       }),
-      fetch(`${API_URL}/api/auth/refresh`, {
+      fetch(`${API_URL}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refreshToken }),
+        body: JSON.stringify({ email: credentials.email, password: credentials.password }),
       }),
     ]);
 
-    const statuses = [res1.status, res2.status].sort();
-    // One should succeed (200), one should fail (401) — atomic UPDATE ensures only 1 wins
-    expect(statuses).toEqual([200, 401]);
+    expect(res1.status).toBe(200);
+    expect(res2.status).toBe(200);
+    expect(res1.headers.get('set-cookie')).toContain('anon_inbox_session=');
+    expect(res2.headers.get('set-cookie')).toContain('anon_inbox_session=');
   }, 30000);
 });
 
@@ -84,7 +76,7 @@ describe('Race conditions: slug generation', () => {
         fetch(`${API_URL}/api/auth/register`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ deviceSecret: makeDeviceSecret(), birthYear: 1995 }),
+          body: JSON.stringify(makeCredentials()),
         }),
       ),
     );
@@ -95,14 +87,17 @@ describe('Race conditions: slug generation', () => {
         try {
           const ct = r.headers.get('content-type') ?? '';
           if (!ct.includes('application/json')) return null;
-          return (await r.json()) as { slug: string };
+          return (await r.json()) as { user: { slug: string } };
         } catch {
           return null;
         }
       }),
     );
 
-    const slugs = registrations.filter(Boolean).map((r) => r!.slug).filter(Boolean);
+    const slugs = registrations
+      .filter(Boolean)
+      .map((r) => r!.user.slug)
+      .filter(Boolean);
     const uniqueSlugs = new Set(slugs);
 
     // All successful registrations should have unique slugs (no duplicates)
