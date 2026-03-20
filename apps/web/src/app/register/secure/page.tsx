@@ -2,12 +2,12 @@
 
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { registerUser } from '@/lib/api';
 
 const APP_URL = (process.env['NEXT_PUBLIC_APP_URL'] ?? 'https://sendita.app').replace(/^https?:\/\//, '');
 
-export default function RegisterSecurePage() {
+function RegisterSecurePageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const username = searchParams.get('username') ?? '';
@@ -140,5 +140,13 @@ export default function RegisterSecurePage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function RegisterSecurePage() {
+  return (
+    <Suspense fallback={null}>
+      <RegisterSecurePageContent />
+    </Suspense>
   );
 }
