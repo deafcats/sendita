@@ -4,6 +4,7 @@ import { getPrimaryClient } from '@anon-inbox/db';
 import { users } from '@anon-inbox/db';
 import { eq } from 'drizzle-orm';
 import { hashSecret } from '@/lib/auth/device';
+import { issueEmailVerification, sendVerificationEmail } from '@/lib/auth/email-verification';
 import { buildSessionCookie, createUserSession } from '@/lib/auth/session';
 import { isValidVanitySlug, sanitizeSlugInput } from '@/lib/slugs/index';
 import { badRequest, serverError } from '@/lib/middleware';
@@ -80,6 +81,20 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     if (!user) throw new Error('User creation failed');
 
+    const verification = await issueEmailVerification(user.id);
+    let emailResult: { sent: boolean; previewUrl?: string };
+    try {
+      emailResult = await sendVerificationEmail({
+        email: user.email,
+        displayName: user.displayName,
+        username: user.slug,
+        verificationUrl: verification.verificationUrl,
+      });
+    } catch (emailError) {
+      console.error('Verification email error:', emailError);
+      emailResult = { sent: false, previewUrl: verification.verificationUrl };
+    }
+
     const sessionToken = await createUserSession(user.id);
     const response = NextResponse.json(
       {
@@ -88,7 +103,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           slug: user.slug,
           email: user.email,
           displayName: user.displayName,
+          isEmailVerified: false,
         },
+        verificationPreviewUrl: emailResult.previewUrl,
       },
       { status: 201 },
     );

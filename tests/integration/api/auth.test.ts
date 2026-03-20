@@ -15,6 +15,8 @@ describe('POST /api/auth/register', () => {
     expect(res.status).toBe(201);
     const data = await res.json() as Record<string, unknown>;
     expect((data['user'] as Record<string, unknown>)['slug']).toBe(credentials.username);
+    expect((data['user'] as Record<string, unknown>)['isEmailVerified']).toBe(false);
+    expect(typeof data['verificationPreviewUrl']).toBe('string');
     expect(extractSessionCookie(res)).toContain('anon_inbox_session=');
   });
 
@@ -133,6 +135,42 @@ describe('POST /api/auth/login', () => {
     });
     expect(res.status).toBe(200);
     expect(extractSessionCookie(res)).toContain('anon_inbox_session=');
+  });
+});
+
+describe('POST /api/auth/verify-email', () => {
+  it('resends a verification email for an authenticated user', async () => {
+    const user = await registerUser();
+    const res = await fetch(`${API_URL}/api/auth/verify-email`, {
+      method: 'POST',
+      headers: {
+        Cookie: user.cookie,
+      },
+    });
+
+    expect(res.status).toBe(200);
+    const data = await res.json() as { ok: boolean; previewUrl?: string };
+    expect(data.ok).toBe(true);
+    expect(typeof data.previewUrl).toBe('string');
+  });
+
+  it('verifies the email token and redirects back to the inbox', async () => {
+    const credentials = makeCredentials();
+    const registerRes = await fetch(`${API_URL}/api/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(credentials),
+    });
+    const registerData = await registerRes.json() as { verificationPreviewUrl?: string };
+
+    expect(registerData.verificationPreviewUrl).toBeTruthy();
+
+    const verifyRes = await fetch(registerData.verificationPreviewUrl!, {
+      redirect: 'manual',
+    });
+
+    expect(verifyRes.status).toBe(307);
+    expect(verifyRes.headers.get('location')).toContain('/dashboard/messages?verify=success');
   });
 });
 

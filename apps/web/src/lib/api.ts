@@ -7,6 +7,7 @@ export interface SessionUser {
   slug: string;
   email: string | null;
   displayName: string | null;
+  isEmailVerified: boolean;
 }
 
 export interface DashboardMessage {
@@ -51,7 +52,7 @@ export async function registerUser(payload: {
     const data = (await res.json().catch(() => null)) as { error?: string } | null;
     throw new Error(data?.error ?? 'Failed to create account');
   }
-  return res.json() as Promise<{ user: SessionUser }>;
+  return res.json() as Promise<{ user: SessionUser; verificationPreviewUrl?: string }>;
 }
 
 export async function checkUsernameAvailability(username: string) {
@@ -81,6 +82,15 @@ export async function fetchSession() {
   if (res.status === 401) return null;
   if (!res.ok) throw new Error('Failed to load session');
   return res.json() as Promise<{ user: SessionUser }>;
+}
+
+export async function resendVerificationEmail() {
+  const res = await apiFetch('/api/auth/verify-email', { method: 'POST' });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(data?.error ?? 'Failed to resend verification email');
+  }
+  return res.json() as Promise<{ ok: true; alreadyVerified?: boolean; previewUrl?: string }>;
 }
 
 export async function logoutUser() {

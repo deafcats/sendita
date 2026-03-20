@@ -8,6 +8,11 @@ async function expectDashboardLoaded(page: Page, slug: string) {
   await expect(page.getByRole('link', { name: 'Open public page' })).toHaveAttribute('href', `/${slug}`);
 }
 
+async function expectMessagesLoaded(page: Page) {
+  await expect(page).toHaveURL(/\/dashboard\/messages(\?|$)/);
+  await expect(page.getByRole('heading', { name: 'Messages' })).toBeVisible();
+}
+
 test.describe('Auth and dashboard flows', () => {
   test('claims a username through the UI and reaches the share step', async ({ page }) => {
     const credentials = makeCredentials();
@@ -20,6 +25,28 @@ test.describe('Auth and dashboard flows', () => {
     await expect(page).toHaveURL(new RegExp(`/register/share\\?username=${credentials.username}$`));
     await expect(page.getByRole('heading', { name: 'Share your link' })).toBeVisible();
     await expect(page.getByText(new RegExp(credentials.username)).first()).toBeVisible();
+  });
+
+  test('completes secure setup and lands in the inbox with a verification banner', async ({ page }) => {
+    const credentials = makeCredentials();
+
+    await page.goto('/register');
+    await page.getByLabel('Username').fill(credentials.username);
+    await expect(page.getByText('Username is available')).toBeVisible();
+    await page.getByRole('button', { name: 'Continue with this link' }).click();
+
+    await expect(page).toHaveURL(new RegExp(`/register/share\\?username=${credentials.username}$`));
+    await page.getByRole('link', { name: 'Secure your dashboard' }).click();
+
+    await expect(page).toHaveURL(new RegExp(`/register/secure\\?username=${credentials.username}$`));
+    await page.getByLabel('Display name').fill(credentials.displayName);
+    await page.getByLabel('Email').fill(credentials.email);
+    await page.getByLabel('Password', { exact: true }).fill(credentials.password);
+    await page.getByLabel('Confirm password', { exact: true }).fill(credentials.password);
+    await page.getByRole('button', { name: 'Open my inbox' }).click();
+
+    await expectMessagesLoaded(page);
+    await expect(page.getByText('Verify your email to fully secure your dashboard')).toBeVisible();
   });
 
   test('shows inline alternatives when the username is taken', async ({ page }) => {

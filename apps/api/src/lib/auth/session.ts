@@ -12,6 +12,7 @@ export interface SessionUser {
   slug: string;
   email: string | null;
   displayName: string | null;
+  isEmailVerified: boolean;
   blockedKeywords: string;
   flaggedKeywords: string;
   requireReviewForUnknownLinks: boolean;
@@ -91,6 +92,7 @@ export async function getSessionUserByToken(
       slug: users.slug,
       email: users.email,
       displayName: users.displayName,
+      emailVerifiedAt: users.emailVerifiedAt,
       blockedKeywords: users.blockedKeywords,
       flaggedKeywords: users.flaggedKeywords,
       requireReviewForUnknownLinks: users.requireReviewForUnknownLinks,
@@ -110,6 +112,7 @@ export async function getSessionUserByToken(
     slug: user.slug,
     email: user.email,
     displayName: user.displayName,
+    isEmailVerified: Boolean(user.emailVerifiedAt),
     blockedKeywords: user.blockedKeywords,
     flaggedKeywords: user.flaggedKeywords,
     requireReviewForUnknownLinks: user.requireReviewForUnknownLinks,

@@ -32,6 +32,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       slug: users.slug,
       email: users.email,
       displayName: users.displayName,
+      emailVerifiedAt: users.emailVerifiedAt,
       passwordHash: users.passwordHash,
       isBanned: users.isBanned,
       deletedAt: users.deletedAt,
@@ -56,6 +57,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       slug: user.slug,
       email: user.email,
       displayName: user.displayName,
+      isEmailVerified: Boolean(user.emailVerifiedAt),
     },
   });
   response.cookies.set(buildSessionCookie(sessionToken));

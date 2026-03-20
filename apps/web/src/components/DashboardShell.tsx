@@ -1,9 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useState } from 'react';
 import type { ReactNode } from 'react';
-import { logoutUser, type SessionUser } from '@/lib/api';
+import { logoutUser, resendVerificationEmail, type SessionUser } from '@/lib/api';
 
 const links = [
   { href: '/dashboard', label: 'Overview' },
@@ -24,6 +25,9 @@ export function DashboardShell({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const [verifyStatus, setVerifyStatus] = useState('');
+  const verifyQuery = searchParams.get('verify');
 
   return (
     <div className="min-h-screen bg-slate-950 text-white">
@@ -78,7 +82,51 @@ export function DashboardShell({
           </button>
         </aside>
 
-        <main className="min-w-0 flex-1">{children}</main>
+        <main className="min-w-0 flex-1 space-y-4">
+          {!user.isEmailVerified ? (
+            <div className="rounded-2xl border border-amber-800 bg-amber-950/40 px-4 py-4 text-sm text-amber-100">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="font-medium">Verify your email to fully secure your dashboard</p>
+                  <p className="mt-1 text-amber-200/80">
+                    {verifyQuery === 'sent'
+                      ? 'We just sent a verification email. You can keep using the inbox while you wait.'
+                      : verifyQuery === 'invalid'
+                        ? 'That verification link is no longer valid. Send a fresh one below.'
+                        : 'You can use the inbox now, but verifying your email protects account recovery later.'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setVerifyStatus('Sending...');
+                    try {
+                      const result = await resendVerificationEmail();
+                      setVerifyStatus(
+                        result.previewUrl
+                          ? `Verification preview ready: ${result.previewUrl}`
+                          : result.alreadyVerified
+                            ? 'Your email is already verified.'
+                            : 'Verification email sent.',
+                      );
+                    } catch (err) {
+                      setVerifyStatus(err instanceof Error ? err.message : 'Failed to send email');
+                    }
+                  }}
+                  className="rounded-xl border border-amber-700 px-3 py-2 text-sm text-amber-100 hover:bg-amber-900/40"
+                >
+                  Resend verification email
+                </button>
+              </div>
+              {verifyStatus ? <p className="mt-3 text-xs text-amber-200/80">{verifyStatus}</p> : null}
+            </div>
+          ) : verifyQuery === 'success' ? (
+            <div className="rounded-2xl border border-emerald-900 bg-emerald-950/40 px-4 py-4 text-sm text-emerald-100">
+              Your email is verified. Your dashboard is fully secured now.
+            </div>
+          ) : null}
+          {children}
+        </main>
       </div>
     </div>
   );

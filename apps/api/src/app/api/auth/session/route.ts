@@ -9,6 +9,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         slug: user.slug,
         email: user.email,
         displayName: user.displayName,
+        isEmailVerified: user.isEmailVerified,
       },
     }),
   );

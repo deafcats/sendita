@@ -1,22 +1,26 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { ShareTemplatePicker } from '@/components/ShareTemplatePicker';
 
 const APP_URL = (process.env['NEXT_PUBLIC_APP_URL'] ?? 'https://sendita.app').replace(/^https?:\/\//, '');
 
 const templateCards = [
   {
     name: 'Minimal',
-    accent: 'from-violet-600 to-fuchsia-500',
+    accentClassName: 'from-violet-600 to-fuchsia-500',
+    colors: ['#7c3aed', '#d946ef'] as [string, string],
     copy: 'Ask me anything tonight',
   },
   {
     name: 'Streamer',
-    accent: 'from-cyan-500 to-violet-600',
+    accentClassName: 'from-cyan-500 to-violet-600',
+    colors: ['#06b6d4', '#4f46e5'] as [string, string],
     copy: 'Drop a question for the stream',
   },
   {
     name: 'Bold',
-    accent: 'from-pink-500 to-orange-400',
+    accentClassName: 'from-pink-500 to-orange-400',
+    colors: ['#ec4899', '#fb923c'] as [string, string],
     copy: 'Send me your hottest take',
   },
 ];
@@ -59,32 +63,19 @@ export default async function RegisterSharePage({
         <section>
           <div className="flex items-end justify-between gap-4">
             <div>
-              <h2 className="text-2xl font-semibold">Story template previews</h2>
+              <h2 className="text-2xl font-semibold">Story templates</h2>
               <p className="mt-2 text-sm text-slate-400">
-                One-click Instagram-story sharing is the next step. For now these are visual
-                placeholders so the onboarding flow already has the right shape.
+                Tap a template on mobile to copy your link and open a story-sized share asset. On
+                desktop, tapping a template just copies your link.
               </p>
             </div>
             <span className="rounded-full border border-slate-700 px-3 py-1 text-xs uppercase tracking-wide text-slate-400">
-              Preview only
+              Tap to use
             </span>
           </div>
 
-          <div className="mt-5 grid gap-4 md:grid-cols-3">
-            {templateCards.map((template) => (
-              <div
-                key={template.name}
-                className={`rounded-3xl bg-gradient-to-br ${template.accent} p-5 shadow-xl`}
-              >
-                <div className="rounded-2xl bg-black/15 p-4 backdrop-blur">
-                  <p className="text-xs uppercase tracking-[0.2em] text-white/70">{template.name}</p>
-                  <p className="mt-10 text-2xl font-semibold">{template.copy}</p>
-                  <div className="mt-10 rounded-2xl bg-white/15 px-3 py-2 text-sm">
-                    {publicLink}
-                  </div>
-                </div>
-              </div>
-            ))}
+          <div className="mt-5">
+            <ShareTemplatePicker publicLink={publicLink} templates={templateCards} />
           </div>
         </section>
 
@@ -95,13 +86,12 @@ export default async function RegisterSharePage({
           >
             Choose another username
           </Link>
-          <button
-            type="button"
-            disabled
-            className="rounded-2xl bg-violet-600 px-4 py-3 text-sm font-medium text-white opacity-60"
+          <Link
+            href={`/register/secure?username=${encodeURIComponent(username)}`}
+            className="rounded-2xl bg-violet-600 px-4 py-3 text-sm font-medium text-white hover:bg-violet-500"
           >
-            Next: secure your dashboard
-          </button>
+            Secure your dashboard
+          </Link>
         </div>
 
         <p className="text-sm text-slate-500">
